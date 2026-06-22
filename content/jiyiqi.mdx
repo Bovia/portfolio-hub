@@ -1,0 +1,48 @@
+---
+title: "高项学习器"
+description: "备考高项，最难的不是知识量，是记住之后别忘掉。记忆曲线 + AI 解析，让复习这件事变得科学一点。"
+tags: ["Next.js", "AI", "TypeScript", "记忆算法"]
+thumbnail: "/thumbnails/jiyiqi.png"
+demoUrl: "https://jiyiqi.vercel.app/"
+githubUrl: "https://github.com/yourusername/jiyiqi"
+date: "2024-09"
+---
+
+## 备考高项的真实体验
+
+高项的知识点不难理解，难的是**今天背了，三天后全忘了**。
+
+我刷了两遍题库，考前还是感觉什么都记不牢。后来读到艾宾浩斯遗忘曲线，才意识到：问题不在于没背，而在于没有在对的时间复习。
+
+于是有了这个工具。
+
+## 核心逻辑：让题目在你快要忘记时出现
+
+基于 SM-2 算法，系统会根据你的答题表现，决定这道题下次什么时候再出现。
+
+答对了，下次间隔变长。答错了，明天继续。
+
+```typescript
+// SM-2 核心：质量评分 0-5，决定下次间隔天数
+function calcNextInterval(card: Card, quality: number): number {
+  const ef = Math.max(1.3, card.ef + 0.1 - (5 - quality) * 0.08);
+  if (quality < 3) return 1;
+  if (card.repetitions === 0) return 1;
+  if (card.repetitions === 1) return 6;
+  return Math.round(card.interval * ef);
+}
+```
+
+不需要你管理计划，**每天打开，做完当天的队列，关掉**。剩下的交给算法。
+
+## AI 这块怎么用
+
+高项下午题是主观案例，这部分很难靠刷题提升。
+
+我接入了 AI，让它扮演"挑剔的老师"——你提交一段答案，它告诉你哪里逻辑断了，哪里遗漏了要点，而不只是给你一个分数。
+
+## 一些没想到的事
+
+上线之后收到过一条消息：一个备考了三次的用户说这次终于过了，他在消息里谢了我。
+
+我那天把这条消息截图存下来了。做产品最好的燃料，大概就是这个。
