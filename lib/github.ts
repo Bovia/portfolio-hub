@@ -12,10 +12,12 @@ async function fetchMarkdown(repo: string, branch = "main"): Promise<string | nu
   const headers: HeadersInit = { Accept: "text/plain" };
   if (GITHUB_TOKEN) headers["Authorization"] = `Bearer ${GITHUB_TOKEN}`;
 
+  const isDev = process.env.NODE_ENV === "development";
+
   try {
     const res = await fetch(url, {
       headers,
-      next: { revalidate: 3600 },
+      ...(isDev ? { cache: "no-store" } : { next: { revalidate: 3600 } }),
     });
     if (!res.ok) return null;
     return res.text();
