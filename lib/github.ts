@@ -43,6 +43,11 @@ async function fetchMarkdown(repo: string, branch = "main"): Promise<string | nu
   }
 }
 
+function parsePublished(data: Record<string, unknown>): boolean {
+  if (data.published === false || data.published === "false") return false;
+  return true;
+}
+
 function parseFrontmatter(data: Record<string, unknown>, slug: string, repo: string) {
   return {
     slug,
@@ -54,6 +59,7 @@ function parseFrontmatter(data: Record<string, unknown>, slug: string, repo: str
     githubUrl: (data.githubUrl as string) ?? `https://github.com/${repo}`,
     date: data.date as string | undefined,
     devices: parseDevices(data),
+    published: parsePublished(data),
   };
 }
 

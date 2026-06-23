@@ -15,6 +15,8 @@ export interface PostMeta {
   date?: string;
   /** 预览轮播的设备列表，如 [desktop, mobile, tablet, miniprogram] */
   devices?: PreviewDevice[];
+  /** 是否在 Hub 展示，默认 true */
+  published?: boolean;
 }
 
 export interface Post extends PostMeta {
@@ -35,7 +37,9 @@ export async function getAllPosts(): Promise<PostMeta[]> {
     })
   );
 
-  return posts.sort((a, b) => (b.date ?? "").localeCompare(a.date ?? ""));
+  return posts
+    .filter((p) => p.published !== false)
+    .sort((a, b) => (b.date ?? "").localeCompare(a.date ?? ""));
 }
 
 export async function getPostBySlug(slug: string): Promise<Post | null> {
