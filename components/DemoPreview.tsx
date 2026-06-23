@@ -21,6 +21,9 @@ const TABLET_REF_WIDTH = 820;
 const TABLET_ASPECT = 1180 / 820;
 const TABLET_MAX_WIDTH = 480;
 const TABLET_MAX_HEIGHT = 560;
+/** iframe 内容缩放：略小于 1 让 App 内容在框内不那么撑 */
+const MOBILE_CONTENT_SCALE = 0.86;
+const TABLET_CONTENT_SCALE = 0.88;
 
 const DEVICE_LABEL: Record<PreviewDevice, string> = {
   desktop: "桌面",
@@ -28,11 +31,23 @@ const DEVICE_LABEL: Record<PreviewDevice, string> = {
   tablet: "iPad",
 };
 
-function StatusIcons({ theme, auto }: { theme: StatusBarTheme; auto?: boolean }) {
+function StatusIcons({
+  theme,
+  auto,
+  iconScale = 1,
+}: {
+  theme: StatusBarTheme;
+  auto?: boolean;
+  iconScale?: number;
+}) {
   const strokeOpacity = auto ? 1 : theme === "dark" ? 0.35 : 0.45;
+  const s = iconScale;
 
   return (
-    <div className={`flex items-center gap-1.5 ${auto ? "opacity-90" : ""}`}>
+    <div
+      className={`flex items-center gap-1.5 ${auto ? "opacity-90" : ""}`}
+      style={{ transform: s !== 1 ? `scale(${s})` : undefined, transformOrigin: "center right" }}
+    >
       <svg width="16" height="11" viewBox="0 0 16 11" fill="currentColor">
         <rect x="0" y="6" width="3" height="5" rx="0.5" />
         <rect x="4.5" y="4" width="3" height="7" rx="0.5" />
@@ -62,6 +77,7 @@ function DeviceStatusBar({
 }) {
   const refWidth = device === "mobile" ? PHONE_REF_WIDTH : TABLET_REF_WIDTH;
   const scale = screenWidth / refWidth;
+  const uiScale = Math.min(scale * 1.12, 1.15);
   const auto = mode === "auto";
   const fgClass = auto
     ? "text-white mix-blend-difference"
@@ -73,17 +89,20 @@ function DeviceStatusBar({
     <>
       {device === "mobile" && (
         <div
-          className="absolute left-1/2 top-[10px] -translate-x-1/2 z-30 pointer-events-none"
-          style={{ width: Math.round(108 * scale), height: Math.round(30 * scale) }}
+          className="absolute left-1/2 top-[4px] -translate-x-1/2 z-30 pointer-events-none"
+          style={{
+            width: Math.round(108 * uiScale),
+            height: Math.round(32 * uiScale),
+          }}
         >
           <div className="w-full h-full bg-black rounded-full ring-1 ring-white/10" />
         </div>
       )}
       <div
-        className={`absolute top-0 inset-x-0 z-20 flex items-end justify-between px-5 pb-1 h-11 pointer-events-none transition-colors duration-500 ${fgClass}`}
+        className={`absolute top-0 inset-x-0 z-20 flex items-center justify-between px-4 pt-1.5 h-10 pointer-events-none transition-colors duration-500 ${fgClass}`}
       >
-        <span className="text-[12px] font-semibold tracking-tight">9:41</span>
-        <StatusIcons theme={mode === "auto" ? "light" : mode} auto={auto} />
+        <span className="text-[13px] font-semibold tracking-tight leading-none">9:41</span>
+        <StatusIcons theme={mode === "auto" ? "light" : mode} auto={auto} iconScale={uiScale} />
       </div>
     </>
   );
@@ -111,6 +130,35 @@ function HomeIndicator({
             : "bg-white/55"
       }`}
       style={{ width: barW }}
+    />
+  );
+}
+
+function ScaledDeviceIframe({
+  src,
+  title,
+  width,
+  height,
+  contentScale,
+}: {
+  src: string;
+  title: string;
+  width: number;
+  height: number;
+  contentScale: number;
+}) {
+  return (
+    <iframe
+      src={src}
+      title={title}
+      className="absolute top-0 left-0 border-0 bg-white origin-top-left"
+      loading="lazy"
+      sandbox="allow-scripts allow-same-origin allow-forms"
+      style={{
+        width: width / contentScale,
+        height: height / contentScale,
+        transform: `scale(${contentScale})`,
+      }}
     />
   );
 }
@@ -314,12 +362,12 @@ export function DemoPreview({
                 borderRadius: phone.screenRadius,
               }}
             >
-              <iframe
+              <ScaledDeviceIframe
                 src={demoUrl}
                 title={`${title} 演示预览`}
-                className="w-full h-full border-0 bg-white"
-                loading="lazy"
-                sandbox="allow-scripts allow-same-origin allow-forms"
+                width={phone.phoneWidth}
+                height={phone.phoneHeight}
+                contentScale={MOBILE_CONTENT_SCALE}
               />
               <DeviceStatusBar mode={statusBarMode} device="mobile" screenWidth={phone.phoneWidth} />
               <HomeIndicator mode={statusBarMode} screenWidth={phone.phoneWidth} refWidth={PHONE_REF_WIDTH} />
@@ -351,12 +399,12 @@ export function DemoPreview({
                 borderRadius: tablet.screenRadius,
               }}
             >
-              <iframe
+              <ScaledDeviceIframe
                 src={demoUrl}
                 title={`${title} 演示预览`}
-                className="w-full h-full border-0 bg-white"
-                loading="lazy"
-                sandbox="allow-scripts allow-same-origin allow-forms"
+                width={tablet.tabletWidth}
+                height={tablet.tabletHeight}
+                contentScale={TABLET_CONTENT_SCALE}
               />
               <DeviceStatusBar mode={statusBarMode} device="tablet" screenWidth={tablet.tabletWidth} />
               <HomeIndicator mode={statusBarMode} screenWidth={tablet.tabletWidth} refWidth={TABLET_REF_WIDTH} />
