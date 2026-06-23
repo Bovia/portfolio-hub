@@ -13,6 +13,18 @@ interface DemoPreviewProps {
   intervalMs?: number;
 }
 
+/** Portfolio iframe 嵌入时带上 embed=1，子项目可跳过登录直接体验 */
+function withEmbedParam(url: string): string {
+  try {
+    const parsed = new URL(url);
+    parsed.searchParams.set("embed", "1");
+    return parsed.toString();
+  } catch {
+    const joiner = url.includes("?") ? "&" : "?";
+    return `${url}${joiner}embed=1`;
+  }
+}
+
 const DESKTOP_VIEWPORT = { width: 1280, height: 720 };
 const PHONE_REF_WIDTH = 393;
 const PHONE_ASPECT = 852 / 393;
@@ -549,6 +561,7 @@ export function DemoPreview({
   const activeDevice = previewDevices[deviceIndex] ?? previewDevices[0];
   const hasPreview = previewDevices.length > 0;
   const hostname = demoUrl.replace(/^https?:\/\//, "").replace(/\/$/, "");
+  const embedDemoUrl = useMemo(() => withEmbedParam(demoUrl), [demoUrl]);
 
   const morphTransition = reducedMotion
     ? undefined
@@ -612,7 +625,7 @@ export function DemoPreview({
           <span className="ml-3 text-xs text-gray-400 font-mono truncate">{hostname}</span>
         </div>
         <iframe
-          src={demoUrl}
+          src={embedDemoUrl}
           title={`${title} 演示预览`}
           className="w-full h-[480px] border-0"
           loading="lazy"
@@ -784,7 +797,7 @@ export function DemoPreview({
               }}
             >
               <iframe
-                src={demoUrl}
+                src={embedDemoUrl}
                 title={`${title} 演示预览`}
                 className="absolute top-0 left-0 border-0 bg-white origin-top-left"
                 loading="lazy"
