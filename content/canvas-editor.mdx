@@ -1,0 +1,38 @@
+---
+title: Canvas 图文编辑器
+description: 类 Canva 的 Web 端可视化图文编辑工具，支持多页模板、拖拽排版、AI 生图与高清导出
+tags:
+  - JavaScript
+  - Fabric.js
+  - Vite
+  - Canvas
+date: 2026-06
+devices:
+  - desktop
+  - tablet
+demoUrl: https://canva-two-eosin.vercel.app
+githubUrl: https://github.com/Bovia/canvas-editor
+---
+
+## 为什么做这个
+
+做海报、社交配图时，PS 太重、表单类工具又不够自由。想要一个打开浏览器就能用、能在画布上直接改字拖位置的轻量编辑器，不依赖后端，导出即所得。
+
+## 它解决了什么
+
+从欢迎页选尺寸或模板开始，支持多页设计、文字/图片/背景编辑、图层管理与对齐辅助线。可保存 JSON 项目继续编辑，或导出 2x PNG。内置 AI 生图 Tab，描述即可生成背景或素材插入画布。自动保存草稿与最近项目列表，刷新不丢稿。
+
+## 一个值得说的技术决定
+
+编辑器运行时与导出共用 **Fabric.js 同一渲染管线**。所有元素状态序列化为 JSON，预览和导出读同一份数据，避免「预览好看、导出跑偏」。画布逻辑坐标与视图缩放分离，拖拽换算不受 zoom 影响。
+
+```js
+// 导出时离屏重建 canvas，与编辑器使用相同 JSON → Fabric 对象流程
+const exportCanvas = new Canvas(null, { width, height });
+loadDocumentJSON(exportCanvas, documentState);
+exportCanvas.toDataURL({ multiplier: 2 });
+```
+
+## 结果
+
+v1.1.0 已支持多页、9 个内置模板、对齐吸附、组合/解组、AI 生图（DALL·E 3 代理）与自动保存。纯前端静态部署在 Vercel，主包 gzip 约 102 KB，零运维。

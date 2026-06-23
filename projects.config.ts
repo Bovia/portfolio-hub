@@ -27,4 +27,8 @@ export const PROJECTS: ProjectConfig[] = [
     slug: "clinic-tools",
     repo: `${GITHUB_USER}/clinic_tools`,
   },
+  {
+    slug: "canvas-editor",
+    repo: `${GITHUB_USER}/canvas-editor`,
+  },
 ];
