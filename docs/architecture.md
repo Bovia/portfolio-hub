@@ -14,6 +14,7 @@ flowchart TB
         P3["be-young\n└── portfolio.md"]
         P4["ruankao-senior\n└── portfolio.md"]
         P5["clinic_tools\n└── portfolio.md"]
+        P6["canvas-editor\n└── portfolio.md"]
     end
 
     subgraph 唯一合并点["Portfolio Hub（portfolio-hub）"]
@@ -30,14 +31,14 @@ flowchart TB
         PAGE["详情页：文章 + iframe 在线 Demo"]
     end
 
-    P1 & P2 & P3 & P4 & P5 -->|"GitHub Raw API\n每小时 revalidate"| GH
+    P1 & P2 & P3 & P4 & P5 & P6 -->|"GitHub Raw API\n每小时 revalidate"| GH
     CFG --> POSTS
     GH --> POSTS
     POSTS --> HOME & DETAIL
     HOME --> CARD
     DETAIL --> PAGE
     USER --> CARD & PAGE
-    P1 & P2 & P3 & P4 & P5 -.->|"demoUrl 指向各自 Vercel"| PAGE
+    P1 & P2 & P3 & P4 & P5 & P6 -.->|"demoUrl 指向各自 Vercel"| PAGE
 ```
 
 ---
