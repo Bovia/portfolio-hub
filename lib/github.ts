@@ -7,6 +7,10 @@ function rawUrl(repo: string, branch = "main") {
   return `https://raw.githubusercontent.com/${repo}/${branch}/portfolio.md`;
 }
 
+function parseResponsive(value: unknown): boolean {
+  return value === true || value === "true";
+}
+
 async function fetchMarkdown(repo: string, branch = "main"): Promise<string | null> {
   const url = rawUrl(repo, branch);
   const headers: HeadersInit = { Accept: "text/plain" };
@@ -26,6 +30,20 @@ async function fetchMarkdown(repo: string, branch = "main"): Promise<string | nu
   }
 }
 
+function parseFrontmatter(data: Record<string, unknown>, slug: string, repo: string) {
+  return {
+    slug,
+    title: (data.title as string) ?? slug,
+    description: (data.description as string) ?? "",
+    tags: (data.tags as string[]) ?? [],
+    thumbnail: (data.thumbnail as string) ?? "",
+    demoUrl: data.demoUrl as string | undefined,
+    githubUrl: (data.githubUrl as string) ?? `https://github.com/${repo}`,
+    date: data.date as string | undefined,
+    responsive: parseResponsive(data.responsive),
+  };
+}
+
 export async function fetchPostMeta(
   slug: string,
   repo: string,
@@ -35,16 +53,7 @@ export async function fetchPostMeta(
   if (!raw) return null;
 
   const { data } = matter(raw);
-  return {
-    slug,
-    title: data.title ?? slug,
-    description: data.description ?? "",
-    tags: data.tags ?? [],
-    thumbnail: data.thumbnail ?? "",
-    demoUrl: data.demoUrl,
-    githubUrl: data.githubUrl ?? `https://github.com/${repo}`,
-    date: data.date,
-  };
+  return parseFrontmatter(data, slug, repo);
 }
 
 export async function fetchPost(
@@ -56,15 +65,5 @@ export async function fetchPost(
   if (!raw) return null;
 
   const { data, content } = matter(raw);
-  return {
-    slug,
-    title: data.title ?? slug,
-    description: data.description ?? "",
-    tags: data.tags ?? [],
-    thumbnail: data.thumbnail ?? "",
-    demoUrl: data.demoUrl,
-    githubUrl: data.githubUrl ?? `https://github.com/${repo}`,
-    date: data.date,
-    content,
-  };
+  return { ...parseFrontmatter(data, slug, repo), content };
 }

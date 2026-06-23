@@ -10,6 +10,8 @@ export interface PostMeta {
   demoUrl?: string;
   githubUrl?: string;
   date?: string;
+  /** 响应式：兼容移动端 + 桌面端，开启预览双模式切换 */
+  responsive?: boolean;
 }
 
 export interface Post extends PostMeta {
@@ -21,13 +23,16 @@ export function getAllPostSlugs(): string[] {
 }
 
 export async function getAllPosts(): Promise<PostMeta[]> {
-  const results = await Promise.all(
-    PROJECTS.map((p) => fetchPostMeta(p.slug, p.repo, p.branch))
+  const posts: PostMeta[] = [];
+
+  await Promise.all(
+    PROJECTS.map(async (project) => {
+      const meta = await fetchPostMeta(project.slug, project.repo, project.branch);
+      if (meta) posts.push(meta);
+    })
   );
 
-  return results
-    .filter((p): p is PostMeta => p !== null)
-    .sort((a, b) => (b.date ?? "").localeCompare(a.date ?? ""));
+  return posts.sort((a, b) => (b.date ?? "").localeCompare(a.date ?? ""));
 }
 
 export async function getPostBySlug(slug: string): Promise<Post | null> {

@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
+import { DemoPreview } from "@/components/DemoPreview";
 import { MDXWrapper } from "@/components/MDXWrapper";
 import { getAllPostSlugs, getPostBySlug } from "@/lib/posts";
 import type { Metadata } from "next";
@@ -29,7 +30,7 @@ export default async function ProjectPage({ params }: PageProps) {
   if (!post) notFound();
 
   return (
-    <div className="max-w-6xl mx-auto px-6 py-16">
+    <div className="max-w-6xl mx-auto px-4 sm:px-6 py-16 min-w-0 overflow-x-hidden">
       {/* 返回按钮 */}
       <Link
         href="/"
@@ -74,34 +75,21 @@ export default async function ProjectPage({ params }: PageProps) {
       </div>
 
       {/* 主体布局：内容 + 预览 */}
-      <div className="grid grid-cols-1 xl:grid-cols-[1fr_420px] gap-12">
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-8 xl:gap-12 min-w-0">
         {/* 左侧：MDX 文章内容 */}
         <article className="min-w-0">
           <MDXWrapper source={post.content} />
         </article>
 
-        {/* 右侧：Demo 预览 + 链接 */}
-        <aside className="xl:sticky xl:top-20 self-start space-y-5">
+        {/* 右侧：Demo 预览，固定占一半宽度 */}
+        <aside className="xl:sticky xl:top-20 self-start w-full min-w-0 max-w-full overflow-hidden space-y-5">
           {/* Demo 预览窗口 */}
           {post.demoUrl && (
-            <div className="rounded-2xl overflow-hidden border border-gray-200 shadow-sm bg-gray-50">
-              {/* 仿 macOS 窗口标题栏 */}
-              <div className="flex items-center gap-1.5 px-4 py-3 bg-gray-100/80 border-b border-gray-200">
-                <span className="w-3 h-3 rounded-full bg-red-400" />
-                <span className="w-3 h-3 rounded-full bg-yellow-400" />
-                <span className="w-3 h-3 rounded-full bg-green-400" />
-                <span className="ml-3 text-xs text-gray-400 font-mono truncate">
-                  {post.demoUrl.replace(/^https?:\/\//, "")}
-                </span>
-              </div>
-              <iframe
-                src={post.demoUrl}
-                title={`${post.title} 演示预览`}
-                className="w-full h-[520px] border-0"
-                loading="lazy"
-                sandbox="allow-scripts allow-same-origin allow-forms"
-              />
-            </div>
+            <DemoPreview
+              demoUrl={post.demoUrl}
+              title={post.title}
+              responsive={post.responsive}
+            />
           )}
 
           {/* 操作链接 */}
