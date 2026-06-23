@@ -1,14 +1,27 @@
 import matter from "gray-matter";
-import type { PostMeta, Post } from "./posts";
+import type { PostMeta, Post, PreviewDevice } from "./posts";
 
 const GITHUB_TOKEN = process.env.GITHUB_TOKEN;
+
+const VALID_DEVICES = new Set<PreviewDevice>(["desktop", "mobile", "tablet"]);
 
 function rawUrl(repo: string, branch = "main") {
   return `https://raw.githubusercontent.com/${repo}/${branch}/portfolio.md`;
 }
 
-function parseResponsive(value: unknown): boolean {
-  return value === true || value === "true";
+function parseDevices(data: Record<string, unknown>): PreviewDevice[] {
+  if (Array.isArray(data.devices)) {
+    return data.devices
+      .map((d) => String(d).toLowerCase())
+      .filter((d): d is PreviewDevice => VALID_DEVICES.has(d as PreviewDevice));
+  }
+
+  // 兼容旧字段 responsive: true → [desktop, mobile]
+  const legacy =
+    data.responsive === true || data.responsive === "true";
+  if (legacy) return ["desktop", "mobile"];
+
+  return [];
 }
 
 async function fetchMarkdown(repo: string, branch = "main"): Promise<string | null> {
@@ -40,7 +53,7 @@ function parseFrontmatter(data: Record<string, unknown>, slug: string, repo: str
     demoUrl: data.demoUrl as string | undefined,
     githubUrl: (data.githubUrl as string) ?? `https://github.com/${repo}`,
     date: data.date as string | undefined,
-    responsive: parseResponsive(data.responsive),
+    devices: parseDevices(data),
   };
 }
 

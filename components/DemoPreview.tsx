@@ -1,24 +1,32 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import type { PreviewDevice } from "@/lib/posts";
 
-type ViewMode = "desktop" | "mobile";
-/** dark = 深灰图标（浅色背景）；light = 白色图标（深色背景） */
 type StatusBarTheme = "dark" | "light";
-/** auto = mix-blend 随内容自适应；dark/light = 嵌入页 postMessage 显式指定 */
 type StatusBarMode = "auto" | StatusBarTheme;
 
 interface DemoPreviewProps {
   demoUrl: string;
   title: string;
-  responsive?: boolean;
+  devices?: PreviewDevice[];
   intervalMs?: number;
 }
 
 const DESKTOP_VIEWPORT = { width: 1280, height: 720 };
-const PHONE_ASPECT = 852 / 393;
 const PHONE_REF_WIDTH = 393;
+const PHONE_ASPECT = 852 / 393;
 const PHONE_MAX_WIDTH = 320;
+const TABLET_REF_WIDTH = 820;
+const TABLET_ASPECT = 1180 / 820;
+const TABLET_MAX_WIDTH = 480;
+const TABLET_MAX_HEIGHT = 560;
+
+const DEVICE_LABEL: Record<PreviewDevice, string> = {
+  desktop: "桌面",
+  mobile: "iPhone",
+  tablet: "iPad",
+};
 
 function StatusIcons({ theme, auto }: { theme: StatusBarTheme; auto?: boolean }) {
   const strokeOpacity = auto ? 1 : theme === "dark" ? 0.35 : 0.45;
@@ -35,36 +43,25 @@ function StatusIcons({ theme, auto }: { theme: StatusBarTheme; auto?: boolean })
         <path d="M7 2.2C5.1 2.2 3.3 2.9 1.9 4.1L0 2.1C1.9 0.4 4.4-.6 7-.6s5.1 1 7 2.7l-1.9 2C10.7 2.9 8.9 2.2 7 2.2zm0 3.5c-1.2 0-2.3.5-3.1 1.3L2 4.8C3.3 3.5 5.1 2.8 7 2.8s3.7.7 5 2l-1.9 1.9c-.8-.8-1.9-1.3-3.1-1.3zm0 3.5c-.7 0-1.3.3-1.8.7L7 8.4l1.8-1.8c-.5-.4-1.1-.7-1.8-.7z" />
       </svg>
       <svg width="22" height="11" viewBox="0 0 22 11" fill="none">
-        <rect
-          x="0.5"
-          y="0.5"
-          width="18"
-          height="10"
-          rx="2"
-          stroke="currentColor"
-          strokeOpacity={strokeOpacity}
-        />
+        <rect x="0.5" y="0.5" width="18" height="10" rx="2" stroke="currentColor" strokeOpacity={strokeOpacity} />
         <rect x="2" y="2" width="14" height="7" rx="1" fill="currentColor" />
-        <path
-          d="M20 4.5v2a1.5 1.5 0 000-3v3z"
-          fill="currentColor"
-          fillOpacity={strokeOpacity}
-        />
+        <path d="M20 4.5v2a1.5 1.5 0 000-3v3z" fill="currentColor" fillOpacity={strokeOpacity} />
       </svg>
     </div>
   );
 }
 
-function IPhoneStatusBar({
+function DeviceStatusBar({
   mode,
-  phoneWidth,
+  device,
+  screenWidth,
 }: {
   mode: StatusBarMode;
-  phoneWidth: number;
+  device: "mobile" | "tablet";
+  screenWidth: number;
 }) {
-  const scale = phoneWidth / PHONE_REF_WIDTH;
-  const islandW = Math.round(108 * scale);
-  const islandH = Math.round(30 * scale);
+  const refWidth = device === "mobile" ? PHONE_REF_WIDTH : TABLET_REF_WIDTH;
+  const scale = screenWidth / refWidth;
   const auto = mode === "auto";
   const fgClass = auto
     ? "text-white mix-blend-difference"
@@ -74,12 +71,14 @@ function IPhoneStatusBar({
 
   return (
     <>
-      <div
-        className="absolute left-1/2 top-[10px] -translate-x-1/2 z-30 pointer-events-none"
-        style={{ width: islandW, height: islandH }}
-      >
-        <div className="w-full h-full bg-black rounded-full ring-1 ring-white/10" />
-      </div>
+      {device === "mobile" && (
+        <div
+          className="absolute left-1/2 top-[10px] -translate-x-1/2 z-30 pointer-events-none"
+          style={{ width: Math.round(108 * scale), height: Math.round(30 * scale) }}
+        >
+          <div className="w-full h-full bg-black rounded-full ring-1 ring-white/10" />
+        </div>
+      )}
       <div
         className={`absolute top-0 inset-x-0 z-20 flex items-end justify-between px-5 pb-1 h-11 pointer-events-none transition-colors duration-500 ${fgClass}`}
       >
@@ -92,12 +91,14 @@ function IPhoneStatusBar({
 
 function HomeIndicator({
   mode,
-  phoneWidth,
+  screenWidth,
+  refWidth,
 }: {
   mode: StatusBarMode;
-  phoneWidth: number;
+  screenWidth: number;
+  refWidth: number;
 }) {
-  const barW = Math.round(110 * (phoneWidth / PHONE_REF_WIDTH));
+  const barW = Math.round(110 * (screenWidth / refWidth));
   const auto = mode === "auto";
 
   return (
@@ -114,24 +115,63 @@ function HomeIndicator({
   );
 }
 
+function computePhoneSize(availableWidth: number) {
+  let phoneWidth = Math.min(PHONE_MAX_WIDTH, Math.floor(availableWidth * 0.92));
+  let bezel = Math.round(10 * (phoneWidth / PHONE_REF_WIDTH));
+  while (phoneWidth > 200 && phoneWidth + bezel * 2 > availableWidth) {
+    phoneWidth -= 2;
+    bezel = Math.round(10 * (phoneWidth / PHONE_REF_WIDTH));
+  }
+  phoneWidth = Math.max(phoneWidth, 200);
+  const phoneHeight = Math.round(phoneWidth * PHONE_ASPECT);
+  return {
+    phoneWidth,
+    phoneHeight,
+    bezel,
+    screenRadius: Math.round(38 * (phoneWidth / PHONE_REF_WIDTH)),
+    frameRadius: Math.round(44 * (phoneWidth / PHONE_REF_WIDTH)),
+    frameWidth: phoneWidth + bezel * 2,
+    frameHeight: phoneHeight + bezel * 2,
+  };
+}
+
+function computeTabletSize(availableWidth: number) {
+  let tabletWidth = Math.min(TABLET_MAX_WIDTH, Math.floor(availableWidth * 0.96));
+  let tabletHeight = Math.round(tabletWidth * TABLET_ASPECT);
+  if (tabletHeight > TABLET_MAX_HEIGHT) {
+    tabletHeight = TABLET_MAX_HEIGHT;
+    tabletWidth = Math.round(tabletHeight / TABLET_ASPECT);
+  }
+  const bezel = Math.round(12 * (tabletWidth / TABLET_REF_WIDTH));
+  return {
+    tabletWidth,
+    tabletHeight,
+    bezel,
+    screenRadius: Math.round(18 * (tabletWidth / TABLET_REF_WIDTH)),
+    frameRadius: Math.round(24 * (tabletWidth / TABLET_REF_WIDTH)),
+    frameWidth: tabletWidth + bezel * 2,
+    frameHeight: tabletHeight + bezel * 2,
+  };
+}
+
 export function DemoPreview({
   demoUrl,
   title,
-  responsive = false,
+  devices = [],
   intervalMs = 4500,
 }: DemoPreviewProps) {
-  const [mode, setMode] = useState<ViewMode>("desktop");
+  const [deviceIndex, setDeviceIndex] = useState(0);
   const [paused, setPaused] = useState(false);
   const [reducedMotion, setReducedMotion] = useState(false);
   const [containerWidth, setContainerWidth] = useState(() =>
-    typeof window !== "undefined"
-      ? Math.min(window.innerWidth - 32, 960)
-      : 360
+    typeof window !== "undefined" ? Math.min(window.innerWidth - 32, 960) : 360
   );
   const [statusBarMode, setStatusBarMode] = useState<StatusBarMode>("auto");
   const containerRef = useRef<HTMLDivElement>(null);
 
-  const isMobile = mode === "mobile";
+  const previewDevices = devices.length > 0 ? devices : [];
+  const activeDevice = previewDevices[deviceIndex] ?? previewDevices[0];
+  const hasPreview = previewDevices.length > 0;
   const hostname = demoUrl.replace(/^https?:\/\//, "").replace(/\/$/, "");
   const transitionClass = reducedMotion
     ? ""
@@ -139,36 +179,22 @@ export function DemoPreview({
 
   const desktopScale = containerWidth / DESKTOP_VIEWPORT.width;
   const desktopDisplayHeight = DESKTOP_VIEWPORT.height * desktopScale;
-
   const horizontalPadding = containerWidth < 400 ? 16 : 32;
   const availableWidth = Math.max(containerWidth - horizontalPadding, 0);
-  let phoneWidth = Math.min(
-    PHONE_MAX_WIDTH,
-    Math.floor(availableWidth * 0.92)
-  );
-  let bezel = Math.round(10 * (phoneWidth / PHONE_REF_WIDTH));
-  while (phoneWidth > 200 && phoneWidth + bezel * 2 > availableWidth) {
-    phoneWidth -= 2;
-    bezel = Math.round(10 * (phoneWidth / PHONE_REF_WIDTH));
-  }
-  phoneWidth = Math.max(phoneWidth, 200);
-
-  const phoneHeight = Math.round(phoneWidth * PHONE_ASPECT);
-  const screenRadius = Math.round(38 * (phoneWidth / PHONE_REF_WIDTH));
-  const frameRadius = Math.round(44 * (phoneWidth / PHONE_REF_WIDTH));
-  const frameWidth = phoneWidth + bezel * 2;
-  const showSideButtons = phoneWidth >= 280;
+  const phone = computePhoneSize(availableWidth);
+  const tablet = computeTabletSize(availableWidth);
 
   useEffect(() => {
-    setReducedMotion(
-      window.matchMedia("(prefers-reduced-motion: reduce)").matches
-    );
+    setDeviceIndex(0);
+  }, [devices.join(",")]);
+
+  useEffect(() => {
+    setReducedMotion(window.matchMedia("(prefers-reduced-motion: reduce)").matches);
   }, []);
 
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
-
     const observer = new ResizeObserver(([entry]) => {
       setContainerWidth(entry.contentRect.width);
     });
@@ -177,16 +203,13 @@ export function DemoPreview({
   }, []);
 
   useEffect(() => {
-    if (!responsive || paused || reducedMotion) return;
-
+    if (previewDevices.length <= 1 || paused || reducedMotion) return;
     const id = window.setInterval(() => {
-      setMode((current) => (current === "desktop" ? "mobile" : "desktop"));
+      setDeviceIndex((i) => (i + 1) % previewDevices.length);
     }, intervalMs);
-
     return () => window.clearInterval(id);
-  }, [responsive, paused, reducedMotion, intervalMs]);
+  }, [previewDevices, paused, reducedMotion, intervalMs]);
 
-  // 嵌入页滚动/切页时可通过 postMessage 显式指定；否则 Hub 用 mix-blend 自动适配
   useEffect(() => {
     let demoOrigin: string;
     try {
@@ -194,40 +217,36 @@ export function DemoPreview({
     } catch {
       return;
     }
-
     const handler = (event: MessageEvent) => {
       if (event.origin !== demoOrigin) return;
-      const data = event.data;
-      if (data?.type !== "portfolio-status-bar") return;
-      setStatusBarMode(data.theme === "light" ? "light" : "dark");
+      if (event.data?.type !== "portfolio-status-bar") return;
+      setStatusBarMode(event.data.theme === "light" ? "light" : "dark");
     };
-
     window.addEventListener("message", handler);
     return () => window.removeEventListener("message", handler);
   }, [demoUrl]);
 
-  const showBrowserChrome = !responsive || !isMobile;
-  const modeBadge = responsive ? (
+  const showBrowserChrome = activeDevice === "desktop";
+  const isAppleDevice = activeDevice === "mobile" || activeDevice === "tablet";
+  const modeBadge = hasPreview && activeDevice ? (
     <span
       className={`shrink-0 text-[10px] font-medium px-2 py-0.5 rounded-full ${transitionClass} ${
-        isMobile ? "bg-blue-500/15 text-blue-600" : "bg-gray-200/80 text-gray-600"
+        isAppleDevice ? "bg-blue-500/15 text-blue-600" : "bg-gray-200/80 text-gray-600"
       }`}
     >
-      {isMobile ? "iPhone" : "桌面"}
-      {paused && " · 暂停"}
+      {DEVICE_LABEL[activeDevice]}
+      {paused && previewDevices.length > 1 && " · 暂停"}
     </span>
   ) : null;
 
-  if (!responsive) {
+  if (!hasPreview) {
     return (
       <div className="w-full rounded-2xl overflow-hidden border border-gray-200 shadow-sm bg-gray-50">
         <div className="flex items-center gap-1.5 px-4 py-3 bg-gray-100/80 border-b border-gray-200">
           <span className="w-3 h-3 rounded-full bg-red-400" />
           <span className="w-3 h-3 rounded-full bg-yellow-400" />
           <span className="w-3 h-3 rounded-full bg-green-400" />
-          <span className="ml-3 text-xs text-gray-400 font-mono truncate">
-            {hostname}
-          </span>
+          <span className="ml-3 text-xs text-gray-400 font-mono truncate">{hostname}</span>
         </div>
         <iframe
           src={demoUrl}
@@ -244,7 +263,7 @@ export function DemoPreview({
     <div
       ref={containerRef}
       className={`relative w-full max-w-full min-w-0 overflow-x-hidden ${transitionClass} ${
-        isMobile
+        isAppleDevice
           ? "rounded-3xl bg-[#f5f5f7]"
           : "rounded-2xl border border-gray-200 shadow-sm bg-gray-50"
       }`}
@@ -260,46 +279,39 @@ export function DemoPreview({
           <span className="w-3 h-3 rounded-full bg-red-400" />
           <span className="w-3 h-3 rounded-full bg-yellow-400" />
           <span className="w-3 h-3 rounded-full bg-green-400" />
-          <span className="ml-3 text-xs text-gray-400 font-mono truncate flex-1">
-            {hostname}
-          </span>
-          {modeBadge}
+          <span className="ml-3 text-xs text-gray-400 font-mono truncate flex-1">{hostname}</span>
+          {showBrowserChrome && modeBadge}
         </div>
       </div>
 
-      {isMobile ? (
+      {activeDevice === "mobile" && (
         <div
           className={`flex justify-center items-start py-6 sm:py-8 px-2 sm:px-4 min-w-0 overflow-hidden ${transitionClass}`}
-          style={{ minHeight: phoneHeight + 48 }}
+          style={{ minHeight: phone.frameHeight + 32 }}
         >
           <div
             className={`relative shrink-0 max-w-full ${transitionClass}`}
-            style={{
-              width: frameWidth,
-              height: phoneHeight + bezel * 2,
-            }}
+            style={{ width: phone.frameWidth, height: phone.frameHeight }}
           >
             <div
               className="absolute inset-0 bg-gradient-to-b from-[#3a3a3c] via-[#1d1d1f] to-[#2c2c2e] shadow-[0_24px_60px_-12px_rgba(0,0,0,0.45)]"
-              style={{ borderRadius: frameRadius }}
+              style={{ borderRadius: phone.frameRadius }}
             />
-            {showSideButtons && (
+            {phone.phoneWidth >= 280 && (
               <>
                 <div className="absolute left-0 top-[22%] w-[2px] h-7 bg-[#4a4a4c] rounded-l-sm" />
                 <div className="absolute left-0 top-[33%] w-[2px] h-12 bg-[#4a4a4c] rounded-l-sm" />
-                <div className="absolute left-0 top-[48%] w-[2px] h-12 bg-[#4a4a4c] rounded-l-sm" />
                 <div className="absolute right-0 top-[37%] w-[2px] h-16 bg-[#4a4a4c] rounded-r-sm" />
               </>
             )}
-
             <div
               className="absolute overflow-hidden bg-white"
               style={{
-                top: bezel,
-                left: bezel,
-                width: phoneWidth,
-                height: phoneHeight,
-                borderRadius: screenRadius,
+                top: phone.bezel,
+                left: phone.bezel,
+                width: phone.phoneWidth,
+                height: phone.phoneHeight,
+                borderRadius: phone.screenRadius,
               }}
             >
               <iframe
@@ -309,12 +321,51 @@ export function DemoPreview({
                 loading="lazy"
                 sandbox="allow-scripts allow-same-origin allow-forms"
               />
-              <IPhoneStatusBar mode={statusBarMode} phoneWidth={phoneWidth} />
-              <HomeIndicator mode={statusBarMode} phoneWidth={phoneWidth} />
+              <DeviceStatusBar mode={statusBarMode} device="mobile" screenWidth={phone.phoneWidth} />
+              <HomeIndicator mode={statusBarMode} screenWidth={phone.phoneWidth} refWidth={PHONE_REF_WIDTH} />
             </div>
           </div>
         </div>
-      ) : (
+      )}
+
+      {activeDevice === "tablet" && (
+        <div
+          className={`flex justify-center items-start py-6 sm:py-8 px-2 sm:px-4 min-w-0 overflow-hidden ${transitionClass}`}
+          style={{ minHeight: tablet.frameHeight + 32 }}
+        >
+          <div
+            className={`relative shrink-0 max-w-full ${transitionClass}`}
+            style={{ width: tablet.frameWidth, height: tablet.frameHeight }}
+          >
+            <div
+              className="absolute inset-0 bg-gradient-to-b from-[#4a4a4c] via-[#2c2c2e] to-[#1d1d1f] shadow-[0_20px_50px_-12px_rgba(0,0,0,0.4)]"
+              style={{ borderRadius: tablet.frameRadius }}
+            />
+            <div
+              className="absolute overflow-hidden bg-white"
+              style={{
+                top: tablet.bezel,
+                left: tablet.bezel,
+                width: tablet.tabletWidth,
+                height: tablet.tabletHeight,
+                borderRadius: tablet.screenRadius,
+              }}
+            >
+              <iframe
+                src={demoUrl}
+                title={`${title} 演示预览`}
+                className="w-full h-full border-0 bg-white"
+                loading="lazy"
+                sandbox="allow-scripts allow-same-origin allow-forms"
+              />
+              <DeviceStatusBar mode={statusBarMode} device="tablet" screenWidth={tablet.tabletWidth} />
+              <HomeIndicator mode={statusBarMode} screenWidth={tablet.tabletWidth} refWidth={TABLET_REF_WIDTH} />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {activeDevice === "desktop" && (
         <div
           className={`overflow-hidden bg-white max-w-full ${transitionClass}`}
           style={{ width: "100%", height: desktopDisplayHeight }}
@@ -334,7 +385,7 @@ export function DemoPreview({
         </div>
       )}
 
-      {isMobile && (
+      {isAppleDevice && (
         <div className="absolute top-4 right-4 z-30">{modeBadge}</div>
       )}
     </div>

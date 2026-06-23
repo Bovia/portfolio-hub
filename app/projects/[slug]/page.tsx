@@ -88,7 +88,7 @@ export default async function ProjectPage({ params }: PageProps) {
             <DemoPreview
               demoUrl={post.demoUrl}
               title={post.title}
-              responsive={post.responsive}
+              devices={post.devices}
             />
           )}
 

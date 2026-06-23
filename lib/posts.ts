@@ -1,6 +1,9 @@
 import { PROJECTS } from "@/projects.config";
 import { fetchPostMeta, fetchPost } from "./github";
 
+/** 预览设备形态（Form Factor） */
+export type PreviewDevice = "desktop" | "mobile" | "tablet";
+
 export interface PostMeta {
   slug: string;
   title: string;
@@ -10,8 +13,8 @@ export interface PostMeta {
   demoUrl?: string;
   githubUrl?: string;
   date?: string;
-  /** 响应式：兼容移动端 + 桌面端，开启预览双模式切换 */
-  responsive?: boolean;
+  /** 预览轮播的设备列表，如 [desktop, mobile, tablet] */
+  devices?: PreviewDevice[];
 }
 
 export interface Post extends PostMeta {
