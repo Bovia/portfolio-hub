@@ -1,10 +1,10 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import type { PreviewDevice } from "@/lib/posts";
+import { computeSafeAreaTop, MOBILE_SAFE_AREA_TOP, TABLET_SAFE_AREA_TOP } from "@/lib/portfolio-embed";
 
 type StatusBarTheme = "dark" | "light";
-type StatusBarMode = "auto" | StatusBarTheme;
 
 interface DemoPreviewProps {
   demoUrl: string;
@@ -21,15 +21,131 @@ const TABLET_REF_WIDTH = 820;
 const TABLET_ASPECT = 1180 / 820;
 const TABLET_MAX_WIDTH = 480;
 const TABLET_MAX_HEIGHT = 560;
-/** iframe 内容缩放：略小于 1 让 App 内容在框内不那么撑 */
 const MOBILE_CONTENT_SCALE = 0.86;
-const TABLET_CONTENT_SCALE = 0.88;
+const TABLET_CONTENT_SCALE = 0.80;
+const DESKTOP_CHROME_REF_H = 26;
+const MINIPROGRAM_CONTENT_SCALE = 0.86;
+const MINIPROGRAM_REF_WIDTH = 375;
+/** 状态栏 44 + 导航栏 44（375pt 宽设计稿） */
+const MINIPROGRAM_STATUS_H = 44;
+const MINIPROGRAM_NAV_H = 44;
+
+const EASE = "cubic-bezier(0.33, 1, 0.68, 1)";
+const MORPH_MS = 750;
+
+/** iPhone 14 Pro 灵动岛逻辑尺寸（393pt 宽） */
+const MOBILE_ISLAND = { width: 126, height: 37, top: 11 };
 
 const DEVICE_LABEL: Record<PreviewDevice, string> = {
-  desktop: "桌面",
+  desktop: "Mac",
   mobile: "iPhone",
   tablet: "iPad",
+  miniprogram: "小程序",
 };
+
+interface DeviceLayout {
+  mode: PreviewDevice;
+  frameWidth: number;
+  frameHeight: number;
+  frameRadius: number;
+  bezel: number;
+  screenWidth: number;
+  screenHeight: number;
+  screenRadius: number;
+  iframeWidth: number;
+  iframeHeight: number;
+  iframeTop: number;
+  iframeClipHeight: number;
+  iframeTransform: string;
+  isAppleFrame: boolean;
+  isMacBook: boolean;
+  macBookBaseHeight: number;
+  browserChromeHeight: number;
+  showSideButtons: boolean;
+  showOverlays: boolean;
+  overlayKind: "ios" | "miniprogram" | "none";
+  showHomeIndicator: boolean;
+  statusDevice: "mobile" | "tablet";
+  overlayRefWidth: number;
+  stageMinHeight: number;
+}
+
+function DevicePickerIcon({ device, active }: { device: PreviewDevice; active: boolean }) {
+  const c = active ? "#1d1d1f" : "#86868b";
+
+  if (device === "desktop") {
+    return (
+      <svg width="28" height="20" viewBox="0 0 28 20" fill="none" aria-hidden>
+        <rect x="1" y="1" width="26" height="13" rx="1.5" stroke={c} strokeWidth="1.4" />
+        <path d="M0 17h28" stroke={c} strokeWidth="1.4" strokeLinecap="round" />
+        <path d="M10 17v1.5h8V17" stroke={c} strokeWidth="1.4" strokeLinejoin="round" />
+      </svg>
+    );
+  }
+
+  if (device === "mobile" || device === "miniprogram") {
+    return (
+      <svg width="14" height="24" viewBox="0 0 14 24" fill="none" aria-hidden>
+        <rect x="1" y="1" width="12" height="22" rx="2.5" stroke={c} strokeWidth="1.4" />
+        {device === "miniprogram" ? (
+          <>
+            <circle cx="10" cy="5" r="2.5" fill={c} fillOpacity={active ? 0.85 : 0.55} />
+            <path d="M9 5h2M10 4v2" stroke="white" strokeWidth="0.6" strokeLinecap="round" />
+          </>
+        ) : (
+          <rect x="5" y="3.5" width="4" height="1.5" rx="0.6" fill={c} fillOpacity={active ? 1 : 0.55} />
+        )}
+      </svg>
+    );
+  }
+
+  return (
+    <svg width="20" height="24" viewBox="0 0 20 24" fill="none" aria-hidden>
+      <rect x="1" y="1" width="18" height="22" rx="2.5" stroke={c} strokeWidth="1.4" />
+      <circle cx="10" cy="19.5" r="0.9" fill={c} fillOpacity={active ? 0.35 : 0.22} />
+    </svg>
+  );
+}
+
+function DeviceSwitcher({
+  devices,
+  activeIndex,
+  onSelect,
+}: {
+  devices: PreviewDevice[];
+  activeIndex: number;
+  onSelect: (index: number) => void;
+}) {
+  if (devices.length <= 1) return null;
+
+  return (
+    <div className="flex justify-center pt-3 pb-1.5" role="tablist" aria-label="预览设备">
+      <div className="inline-flex items-center gap-0.5 rounded-full p-1 bg-[#e8e8ed]/60">
+        {devices.map((device, index) => {
+          const active = index === activeIndex;
+          return (
+            <button
+              key={device}
+              type="button"
+              role="tab"
+              aria-selected={active}
+              aria-label={DEVICE_LABEL[device]}
+              title={DEVICE_LABEL[device]}
+              onClick={() => onSelect(index)}
+              className={`flex items-center justify-center w-11 h-9 rounded-full transition-all duration-300 ease-out ${
+                active
+                  ? "bg-white shadow-[0_1px_4px_rgba(0,0,0,0.08)]"
+                  : "opacity-70 hover:opacity-100"
+              }`}
+            >
+              <DevicePickerIcon device={device} active={active} />
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
 
 function StatusIcons({
   theme,
@@ -66,99 +182,157 @@ function StatusIcons({
   );
 }
 
-function DeviceStatusBar({
-  mode,
+/** 系统级固定层：灵动岛 + 状态栏（不遮挡滚动内容） */
+function SystemChrome({
   device,
   screenWidth,
+  morphStyle,
 }: {
-  mode: StatusBarMode;
   device: "mobile" | "tablet";
   screenWidth: number;
+  morphStyle?: CSSProperties;
 }) {
   const refWidth = device === "mobile" ? PHONE_REF_WIDTH : TABLET_REF_WIDTH;
   const scale = screenWidth / refWidth;
-  const uiScale = Math.min(scale * 1.12, 1.15);
-  const auto = mode === "auto";
-  const fgClass = auto
-    ? "text-white mix-blend-difference"
-    : mode === "dark"
-      ? "text-[#1d1d1f]"
-      : "text-white";
+  const safeTop = Math.round(
+    (device === "mobile" ? MOBILE_SAFE_AREA_TOP : TABLET_SAFE_AREA_TOP) *
+      (screenWidth / (device === "mobile" ? PHONE_REF_WIDTH : TABLET_REF_WIDTH))
+  );
+  const iconScale = Math.min(scale * 1.06, 1.1);
+  const timeSize = Math.max(11, Math.round(15 * scale));
+  const statusPaddingBottom = device === "mobile" ? Math.round(8 * scale) : Math.round(10 * scale);
+
+  const islandW = Math.round(MOBILE_ISLAND.width * scale);
+  const islandH = Math.round(MOBILE_ISLAND.height * scale);
+  const islandTop = Math.round(MOBILE_ISLAND.top * scale);
+  const islandRadius = Math.round(islandH / 2);
 
   return (
     <>
       {device === "mobile" && (
         <div
-          className="absolute left-1/2 top-[4px] -translate-x-1/2 z-30 pointer-events-none"
+          className="absolute left-1/2 z-30 pointer-events-none"
           style={{
-            width: Math.round(108 * uiScale),
-            height: Math.round(32 * uiScale),
+            top: islandTop,
+            width: islandW,
+            height: islandH,
+            transform: "translateX(-50%)",
+            ...morphStyle,
           }}
         >
-          <div className="w-full h-full bg-black rounded-full ring-1 ring-white/10" />
+          <div
+            className="w-full h-full bg-black ring-1 ring-white/[0.08]"
+            style={{ borderRadius: islandRadius }}
+          />
         </div>
       )}
+
       <div
-        className={`absolute top-0 inset-x-0 z-20 flex items-center justify-between px-4 pt-1.5 h-10 pointer-events-none transition-colors duration-500 ${fgClass}`}
+        className="absolute top-0 inset-x-0 z-20 flex items-end justify-between px-4 pointer-events-none text-white mix-blend-difference"
+        style={{
+          height: safeTop,
+          paddingBottom: statusPaddingBottom,
+          ...morphStyle,
+        }}
       >
-        <span className="text-[13px] font-semibold tracking-tight leading-none">9:41</span>
-        <StatusIcons theme={mode === "auto" ? "light" : mode} auto={auto} iconScale={uiScale} />
+        <span className="font-semibold tracking-tight leading-none" style={{ fontSize: timeSize }}>
+          9:41
+        </span>
+        <StatusIcons theme="light" auto iconScale={iconScale} />
       </div>
     </>
   );
 }
 
-function HomeIndicator({
-  mode,
+/** 微信小程序顶栏：状态栏 + 导航栏 + 胶囊按钮 */
+function MiniProgramChrome({
   screenWidth,
-  refWidth,
+  pageTitle,
+  morphStyle,
 }: {
-  mode: StatusBarMode;
   screenWidth: number;
-  refWidth: number;
+  pageTitle: string;
+  morphStyle?: CSSProperties;
 }) {
-  const barW = Math.round(110 * (screenWidth / refWidth));
-  const auto = mode === "auto";
+  const scale = screenWidth / MINIPROGRAM_REF_WIDTH;
+  const statusH = Math.round(MINIPROGRAM_STATUS_H * scale);
+  const navH = Math.round(MINIPROGRAM_NAV_H * scale);
+  const topInset = statusH + navH;
+  const capsuleW = Math.round(87 * scale);
+  const capsuleH = Math.round(32 * scale);
+  const fontSize = Math.max(11, Math.round(14 * scale));
+  const titleSize = Math.max(12, Math.round(16 * scale));
+  const iconScale = Math.min(scale * 1.06, 1.1);
 
   return (
     <div
-      className={`absolute bottom-2 left-1/2 -translate-x-1/2 h-[4px] rounded-full z-20 pointer-events-none transition-colors duration-500 ${
-        auto
-          ? "bg-white mix-blend-difference"
-          : mode === "dark"
-            ? "bg-black/30"
-            : "bg-white/55"
-      }`}
-      style={{ width: barW }}
-    />
+      className="absolute top-0 inset-x-0 z-20 pointer-events-none bg-white"
+      style={{ height: topInset, ...morphStyle }}
+    >
+      <div
+        className="absolute top-0 inset-x-0 flex items-end justify-between px-4 text-[#1d1d1f]"
+        style={{ height: statusH, paddingBottom: Math.round(4 * scale) }}
+      >
+        <span className="font-semibold leading-none" style={{ fontSize }}>
+          9:41
+        </span>
+        <StatusIcons theme="dark" iconScale={iconScale} />
+      </div>
+
+      <div
+        className="absolute inset-x-0 flex items-center border-b border-black/[0.06]"
+        style={{ top: statusH, height: navH, paddingLeft: Math.round(10 * scale), paddingRight: Math.round(8 * scale) }}
+      >
+        <span className="text-[#1d1d1f] leading-none shrink-0" style={{ fontSize: Math.round(22 * scale), width: Math.round(28 * scale) }}>
+          ‹
+        </span>
+        <span
+          className="flex-1 text-center font-medium text-[#1d1d1f] truncate px-1"
+          style={{ fontSize: titleSize }}
+        >
+          {pageTitle}
+        </span>
+        <div
+          className="shrink-0 flex items-center border border-black/15 bg-white/80"
+          style={{
+            width: capsuleW,
+            height: capsuleH,
+            borderRadius: capsuleH / 2,
+            padding: `0 ${Math.round(10 * scale)}px`,
+            gap: Math.round(8 * scale),
+          }}
+        >
+          <span className="flex gap-[3px] items-center" style={{ transform: `scale(${scale})`, transformOrigin: "center" }}>
+            <span className="rounded-full bg-[#1d1d1f]" style={{ width: 3, height: 3 }} />
+            <span className="rounded-full bg-[#1d1d1f]" style={{ width: 4, height: 4 }} />
+            <span className="rounded-full bg-[#1d1d1f]" style={{ width: 3, height: 3 }} />
+          </span>
+          <span className="w-px h-[18px] bg-black/15" style={{ transform: `scaleY(${scale})` }} />
+          <span
+            className="rounded-full border-2 border-[#1d1d1f]"
+            style={{ width: Math.round(16 * scale), height: Math.round(16 * scale) }}
+          />
+        </div>
+      </div>
+    </div>
   );
 }
 
-function ScaledDeviceIframe({
-  src,
-  title,
-  width,
-  height,
-  contentScale,
+function HomeIndicator({
+  screenWidth,
+  refWidth,
+  morphStyle,
 }: {
-  src: string;
-  title: string;
-  width: number;
-  height: number;
-  contentScale: number;
+  screenWidth: number;
+  refWidth: number;
+  morphStyle?: CSSProperties;
 }) {
+  const barW = Math.round(110 * (screenWidth / refWidth));
+
   return (
-    <iframe
-      src={src}
-      title={title}
-      className="absolute top-0 left-0 border-0 bg-white origin-top-left"
-      loading="lazy"
-      sandbox="allow-scripts allow-same-origin allow-forms"
-      style={{
-        width: width / contentScale,
-        height: height / contentScale,
-        transform: `scale(${contentScale})`,
-      }}
+    <div
+      className="absolute bottom-2 left-1/2 -translate-x-1/2 h-[4px] rounded-full z-20 pointer-events-none bg-white mix-blend-difference opacity-90"
+      style={{ width: barW, ...morphStyle }}
     />
   );
 }
@@ -183,6 +357,28 @@ function computePhoneSize(availableWidth: number) {
   };
 }
 
+function computeMacBookSize(availableWidth: number) {
+  const lidWidth = availableWidth;
+  const bezel = Math.max(10, Math.round(12 * (lidWidth / 960)));
+  const screenWidth = lidWidth - bezel * 2;
+  const screenHeight = Math.round(screenWidth * (DESKTOP_VIEWPORT.height / DESKTOP_VIEWPORT.width));
+  const lidHeight = screenHeight + bezel * 2;
+  const baseHeight = Math.max(14, Math.round(18 * (lidWidth / 960)));
+  const lidRadius = Math.max(12, Math.round(16 * (lidWidth / 960)));
+  const screenRadius = Math.max(6, Math.round(6 * (lidWidth / 960)));
+  return {
+    frameWidth: lidWidth,
+    frameHeight: lidHeight + baseHeight - 2,
+    lidHeight,
+    screenWidth,
+    screenHeight,
+    bezel,
+    baseHeight,
+    lidRadius,
+    screenRadius,
+  };
+}
+
 function computeTabletSize(availableWidth: number) {
   let tabletWidth = Math.min(TABLET_MAX_WIDTH, Math.floor(availableWidth * 0.96));
   let tabletHeight = Math.round(tabletWidth * TABLET_ASPECT);
@@ -202,6 +398,139 @@ function computeTabletSize(availableWidth: number) {
   };
 }
 
+function getDeviceLayout(
+  device: PreviewDevice,
+  availableWidth: number,
+  phone: ReturnType<typeof computePhoneSize>,
+  tablet: ReturnType<typeof computeTabletSize>
+): DeviceLayout {
+  if (device === "mobile") {
+    const safeAreaTop = computeSafeAreaTop("mobile", phone.phoneWidth);
+    const contentHeight = phone.phoneHeight - safeAreaTop;
+    return {
+      mode: "mobile",
+      frameWidth: phone.frameWidth,
+      frameHeight: phone.frameHeight,
+      frameRadius: phone.frameRadius,
+      bezel: phone.bezel,
+      screenWidth: phone.phoneWidth,
+      screenHeight: phone.phoneHeight,
+      screenRadius: phone.screenRadius,
+      iframeTop: safeAreaTop,
+      iframeClipHeight: contentHeight,
+      iframeWidth: phone.phoneWidth / MOBILE_CONTENT_SCALE,
+      iframeHeight: contentHeight / MOBILE_CONTENT_SCALE,
+      iframeTransform: `scale(${MOBILE_CONTENT_SCALE})`,
+      isAppleFrame: true,
+      isMacBook: false,
+      macBookBaseHeight: 0,
+      browserChromeHeight: 0,
+      showSideButtons: phone.phoneWidth >= 280,
+      showOverlays: true,
+      overlayKind: "ios",
+      showHomeIndicator: true,
+      statusDevice: "mobile",
+      overlayRefWidth: PHONE_REF_WIDTH,
+      stageMinHeight: phone.frameHeight + 48,
+    };
+  }
+
+  if (device === "tablet") {
+    const safeAreaTop = computeSafeAreaTop("tablet", tablet.tabletWidth);
+    const contentHeight = tablet.tabletHeight - safeAreaTop;
+    return {
+      mode: "tablet",
+      frameWidth: tablet.frameWidth,
+      frameHeight: tablet.frameHeight,
+      frameRadius: tablet.frameRadius,
+      bezel: tablet.bezel,
+      screenWidth: tablet.tabletWidth,
+      screenHeight: tablet.tabletHeight,
+      screenRadius: tablet.screenRadius,
+      iframeTop: safeAreaTop,
+      iframeClipHeight: contentHeight,
+      iframeWidth: tablet.tabletWidth / TABLET_CONTENT_SCALE,
+      iframeHeight: contentHeight / TABLET_CONTENT_SCALE,
+      iframeTransform: `scale(${TABLET_CONTENT_SCALE})`,
+      isAppleFrame: true,
+      isMacBook: false,
+      macBookBaseHeight: 0,
+      browserChromeHeight: 0,
+      showSideButtons: false,
+      showOverlays: true,
+      overlayKind: "ios",
+      showHomeIndicator: true,
+      statusDevice: "tablet",
+      overlayRefWidth: TABLET_REF_WIDTH,
+      stageMinHeight: tablet.frameHeight + 48,
+    };
+  }
+
+  if (device === "miniprogram") {
+    const safeAreaTop = computeSafeAreaTop("miniprogram", phone.phoneWidth);
+    const contentHeight = phone.phoneHeight - safeAreaTop;
+    return {
+      mode: "miniprogram",
+      frameWidth: phone.frameWidth,
+      frameHeight: phone.frameHeight,
+      frameRadius: phone.frameRadius,
+      bezel: phone.bezel,
+      screenWidth: phone.phoneWidth,
+      screenHeight: phone.phoneHeight,
+      screenRadius: phone.screenRadius,
+      iframeTop: safeAreaTop,
+      iframeClipHeight: contentHeight,
+      iframeWidth: phone.phoneWidth / MINIPROGRAM_CONTENT_SCALE,
+      iframeHeight: contentHeight / MINIPROGRAM_CONTENT_SCALE,
+      iframeTransform: `scale(${MINIPROGRAM_CONTENT_SCALE})`,
+      isAppleFrame: true,
+      isMacBook: false,
+      macBookBaseHeight: 0,
+      browserChromeHeight: 0,
+      showSideButtons: phone.phoneWidth >= 280,
+      showOverlays: true,
+      overlayKind: "miniprogram",
+      showHomeIndicator: false,
+      statusDevice: "mobile",
+      overlayRefWidth: MINIPROGRAM_REF_WIDTH,
+      stageMinHeight: phone.frameHeight + 48,
+    };
+  }
+
+  const mb = computeMacBookSize(availableWidth);
+  /** 按屏幕宽度等比缩放，贴满屏幕区域（不再额外缩小留边） */
+  const desktopScale = mb.screenWidth / DESKTOP_VIEWPORT.width;
+  const browserChromeHeight = Math.max(20, Math.round(DESKTOP_CHROME_REF_H * (mb.screenWidth / 800)));
+  const contentHeight = mb.screenHeight - browserChromeHeight;
+
+  return {
+    mode: "desktop",
+    frameWidth: mb.frameWidth,
+    frameHeight: mb.frameHeight,
+    frameRadius: mb.lidRadius,
+    bezel: mb.bezel,
+    screenWidth: mb.screenWidth,
+    screenHeight: mb.screenHeight,
+    screenRadius: mb.screenRadius,
+    iframeTop: browserChromeHeight,
+    iframeClipHeight: contentHeight,
+    iframeWidth: DESKTOP_VIEWPORT.width,
+    iframeHeight: DESKTOP_VIEWPORT.height,
+    iframeTransform: `scale(${desktopScale})`,
+    isAppleFrame: true,
+    isMacBook: true,
+    macBookBaseHeight: mb.baseHeight,
+    browserChromeHeight,
+    showSideButtons: false,
+    showOverlays: false,
+    overlayKind: "none",
+    showHomeIndicator: false,
+    statusDevice: "tablet",
+    overlayRefWidth: TABLET_REF_WIDTH,
+    stageMinHeight: mb.frameHeight + 48,
+  };
+}
+
 export function DemoPreview({
   demoUrl,
   title,
@@ -214,23 +543,33 @@ export function DemoPreview({
   const [containerWidth, setContainerWidth] = useState(() =>
     typeof window !== "undefined" ? Math.min(window.innerWidth - 32, 960) : 360
   );
-  const [statusBarMode, setStatusBarMode] = useState<StatusBarMode>("auto");
   const containerRef = useRef<HTMLDivElement>(null);
 
   const previewDevices = devices.length > 0 ? devices : [];
   const activeDevice = previewDevices[deviceIndex] ?? previewDevices[0];
   const hasPreview = previewDevices.length > 0;
   const hostname = demoUrl.replace(/^https?:\/\//, "").replace(/\/$/, "");
-  const transitionClass = reducedMotion
-    ? ""
-    : "transition-all duration-700 ease-[cubic-bezier(0.33,1,0.68,1)]";
 
-  const desktopScale = containerWidth / DESKTOP_VIEWPORT.width;
-  const desktopDisplayHeight = DESKTOP_VIEWPORT.height * desktopScale;
+  const morphTransition = reducedMotion
+    ? undefined
+    : {
+        transitionProperty: "width, height, top, left, border-radius, transform, opacity, box-shadow, min-height, padding, background-color",
+        transitionDuration: `${MORPH_MS}ms`,
+        transitionTimingFunction: EASE,
+      };
+
   const horizontalPadding = containerWidth < 400 ? 16 : 32;
   const availableWidth = Math.max(containerWidth - horizontalPadding, 0);
   const phone = computePhoneSize(availableWidth);
   const tablet = computeTabletSize(availableWidth);
+
+  const layout = useMemo(
+    () => getDeviceLayout(activeDevice, availableWidth, phone, tablet),
+    [activeDevice, availableWidth, phone, tablet]
+  );
+
+  const showDeviceSwitcher = previewDevices.length > 1;
+  const usesAppleBg = layout.isAppleFrame || showDeviceSwitcher;
 
   useEffect(() => {
     setDeviceIndex(0);
@@ -258,34 +597,10 @@ export function DemoPreview({
     return () => window.clearInterval(id);
   }, [previewDevices, paused, reducedMotion, intervalMs]);
 
-  useEffect(() => {
-    let demoOrigin: string;
-    try {
-      demoOrigin = new URL(demoUrl).origin;
-    } catch {
-      return;
-    }
-    const handler = (event: MessageEvent) => {
-      if (event.origin !== demoOrigin) return;
-      if (event.data?.type !== "portfolio-status-bar") return;
-      setStatusBarMode(event.data.theme === "light" ? "light" : "dark");
-    };
-    window.addEventListener("message", handler);
-    return () => window.removeEventListener("message", handler);
-  }, [demoUrl]);
-
-  const showBrowserChrome = activeDevice === "desktop";
-  const isAppleDevice = activeDevice === "mobile" || activeDevice === "tablet";
-  const modeBadge = hasPreview && activeDevice ? (
-    <span
-      className={`shrink-0 text-[10px] font-medium px-2 py-0.5 rounded-full ${transitionClass} ${
-        isAppleDevice ? "bg-blue-500/15 text-blue-600" : "bg-gray-200/80 text-gray-600"
-      }`}
-    >
-      {DEVICE_LABEL[activeDevice]}
-      {paused && previewDevices.length > 1 && " · 暂停"}
-    </span>
-  ) : null;
+  const handleDeviceSelect = (index: number) => {
+    setDeviceIndex(index);
+    setPaused(true);
+  };
 
   if (!hasPreview) {
     return (
@@ -310,132 +625,224 @@ export function DemoPreview({
   return (
     <div
       ref={containerRef}
-      className={`relative w-full max-w-full min-w-0 overflow-x-hidden ${transitionClass} ${
-        isAppleDevice
+      className={`relative w-full max-w-full min-w-0 overflow-hidden ${
+        usesAppleBg
           ? "rounded-3xl bg-[#f5f5f7]"
           : "rounded-2xl border border-gray-200 shadow-sm bg-gray-50"
       }`}
+      style={{
+        ...morphTransition,
+        transitionProperty: reducedMotion
+          ? undefined
+          : "background-color, border-color, border-radius, box-shadow",
+      }}
       onMouseEnter={() => setPaused(true)}
       onMouseLeave={() => setPaused(false)}
     >
+      {showDeviceSwitcher && (
+        <DeviceSwitcher
+          devices={previewDevices}
+          activeIndex={deviceIndex}
+          onSelect={handleDeviceSelect}
+        />
+      )}
+
+      {/* 统一舞台：单 iframe + morphing 设备框 */}
       <div
-        className={`overflow-hidden ${transitionClass} ${
-          showBrowserChrome ? "max-h-12 opacity-100" : "max-h-0 opacity-0"
-        }`}
+        className="flex justify-center items-start px-2 sm:px-4 min-w-0 overflow-hidden"
+        style={{
+          minHeight: layout.stageMinHeight,
+          paddingTop: layout.isAppleFrame ? 4 : 0,
+          paddingBottom: layout.isAppleFrame ? 20 : 0,
+          ...morphTransition,
+        }}
       >
-        <div className="flex items-center gap-1.5 px-4 py-3 bg-gray-100/80 border-b border-gray-200">
-          <span className="w-3 h-3 rounded-full bg-red-400" />
-          <span className="w-3 h-3 rounded-full bg-yellow-400" />
-          <span className="w-3 h-3 rounded-full bg-green-400" />
-          <span className="ml-3 text-xs text-gray-400 font-mono truncate flex-1">{hostname}</span>
-          {showBrowserChrome && modeBadge}
-        </div>
-      </div>
-
-      {activeDevice === "mobile" && (
         <div
-          className={`flex justify-center items-start py-6 sm:py-8 px-2 sm:px-4 min-w-0 overflow-hidden ${transitionClass}`}
-          style={{ minHeight: phone.frameHeight + 32 }}
+          className="relative overflow-hidden shrink-0 max-w-full mx-auto"
+          style={{
+            width: layout.frameWidth,
+            height: layout.frameHeight,
+            borderRadius: layout.frameRadius,
+            ...morphTransition,
+          }}
         >
+          {/* 设备外壳：手机 / iPad / MacBook 上盖 */}
           <div
-            className={`relative shrink-0 max-w-full ${transitionClass}`}
-            style={{ width: phone.frameWidth, height: phone.frameHeight }}
-          >
-            <div
-              className="absolute inset-0 bg-gradient-to-b from-[#3a3a3c] via-[#1d1d1f] to-[#2c2c2e] shadow-[0_24px_60px_-12px_rgba(0,0,0,0.45)]"
-              style={{ borderRadius: phone.frameRadius }}
-            />
-            {phone.phoneWidth >= 280 && (
-              <>
-                <div className="absolute left-0 top-[22%] w-[2px] h-7 bg-[#4a4a4c] rounded-l-sm" />
-                <div className="absolute left-0 top-[33%] w-[2px] h-12 bg-[#4a4a4c] rounded-l-sm" />
-                <div className="absolute right-0 top-[37%] w-[2px] h-16 bg-[#4a4a4c] rounded-r-sm" />
-              </>
-            )}
-            <div
-              className="absolute overflow-hidden bg-white"
-              style={{
-                top: phone.bezel,
-                left: phone.bezel,
-                width: phone.phoneWidth,
-                height: phone.phoneHeight,
-                borderRadius: phone.screenRadius,
-              }}
-            >
-              <ScaledDeviceIframe
-                src={demoUrl}
-                title={`${title} 演示预览`}
-                width={phone.phoneWidth}
-                height={phone.phoneHeight}
-                contentScale={MOBILE_CONTENT_SCALE}
-              />
-              <DeviceStatusBar mode={statusBarMode} device="mobile" screenWidth={phone.phoneWidth} />
-              <HomeIndicator mode={statusBarMode} screenWidth={phone.phoneWidth} refWidth={PHONE_REF_WIDTH} />
-            </div>
-          </div>
-        </div>
-      )}
-
-      {activeDevice === "tablet" && (
-        <div
-          className={`flex justify-center items-start py-6 sm:py-8 px-2 sm:px-4 min-w-0 overflow-hidden ${transitionClass}`}
-          style={{ minHeight: tablet.frameHeight + 32 }}
-        >
-          <div
-            className={`relative shrink-0 max-w-full ${transitionClass}`}
-            style={{ width: tablet.frameWidth, height: tablet.frameHeight }}
-          >
-            <div
-              className="absolute inset-0 bg-gradient-to-b from-[#4a4a4c] via-[#2c2c2e] to-[#1d1d1f] shadow-[0_20px_50px_-12px_rgba(0,0,0,0.4)]"
-              style={{ borderRadius: tablet.frameRadius }}
-            />
-            <div
-              className="absolute overflow-hidden bg-white"
-              style={{
-                top: tablet.bezel,
-                left: tablet.bezel,
-                width: tablet.tabletWidth,
-                height: tablet.tabletHeight,
-                borderRadius: tablet.screenRadius,
-              }}
-            >
-              <ScaledDeviceIframe
-                src={demoUrl}
-                title={`${title} 演示预览`}
-                width={tablet.tabletWidth}
-                height={tablet.tabletHeight}
-                contentScale={TABLET_CONTENT_SCALE}
-              />
-              <DeviceStatusBar mode={statusBarMode} device="tablet" screenWidth={tablet.tabletWidth} />
-              <HomeIndicator mode={statusBarMode} screenWidth={tablet.tabletWidth} refWidth={TABLET_REF_WIDTH} />
-            </div>
-          </div>
-        </div>
-      )}
-
-      {activeDevice === "desktop" && (
-        <div
-          className={`overflow-hidden bg-white max-w-full ${transitionClass}`}
-          style={{ width: "100%", height: desktopDisplayHeight }}
-        >
-          <iframe
-            src={demoUrl}
-            title={`${title} 演示预览`}
-            className="border-0 origin-top-left"
-            loading="lazy"
-            sandbox="allow-scripts allow-same-origin allow-forms"
+            className="absolute inset-x-0 top-0"
             style={{
-              width: DESKTOP_VIEWPORT.width,
-              height: DESKTOP_VIEWPORT.height,
-              transform: `scale(${desktopScale})`,
+              height: layout.isMacBook ? layout.frameHeight - layout.macBookBaseHeight + 2 : "100%",
+              borderRadius: layout.frameRadius,
+              opacity: layout.isAppleFrame ? 1 : 0,
+              boxShadow: layout.isAppleFrame
+                ? layout.isMacBook
+                  ? "0 16px 40px -14px rgba(0,0,0,0.35)"
+                  : "0 24px 60px -12px rgba(0,0,0,0.45)"
+                : "none",
+              background: layout.isMacBook
+                ? "linear-gradient(to bottom, #48484a, #2c2c2e 55%, #1d1d1f)"
+                : layout.mode === "mobile" || layout.mode === "miniprogram"
+                  ? "linear-gradient(to bottom, #3a3a3c, #1d1d1f, #2c2c2e)"
+                  : layout.mode === "tablet"
+                    ? "linear-gradient(to bottom, #4a4a4c, #2c2c2e, #1d1d1f)"
+                    : "transparent",
+              ...morphTransition,
             }}
           />
-        </div>
-      )}
 
-      {isAppleDevice && (
-        <div className="absolute top-4 right-4 z-30">{modeBadge}</div>
-      )}
+          {/* MacBook 底座 */}
+          <div
+            className="absolute left-1/2 -translate-x-1/2 pointer-events-none"
+            style={{
+              top: layout.frameHeight - layout.macBookBaseHeight,
+              width: "100%",
+              height: layout.macBookBaseHeight,
+              borderRadius: "0 0 10px 10px",
+              opacity: layout.isMacBook ? 1 : 0,
+              background: "linear-gradient(to bottom, #3a3a3c, #252527)",
+              boxShadow: "0 6px 16px -8px rgba(0,0,0,0.25)",
+              ...morphTransition,
+            }}
+          >
+            <div
+              className="absolute left-1/2 top-[35%] -translate-x-1/2 rounded-full bg-white/[0.08]"
+              style={{ width: "18%", height: 3 }}
+            />
+          </div>
+
+          {/* iPhone 侧键 */}
+          <div
+            className="absolute inset-0 pointer-events-none"
+            style={{ opacity: layout.showSideButtons ? 1 : 0, ...morphTransition }}
+          >
+            <div className="absolute left-0 top-[22%] w-[2px] h-7 bg-[#4a4a4c] rounded-l-sm" />
+            <div className="absolute left-0 top-[33%] w-[2px] h-12 bg-[#4a4a4c] rounded-l-sm" />
+            <div className="absolute right-0 top-[37%] w-[2px] h-16 bg-[#4a4a4c] rounded-r-sm" />
+          </div>
+
+          {/* MacBook 摄像头 */}
+          <div
+            className="absolute left-1/2 -translate-x-1/2 pointer-events-none z-10"
+            style={{
+              top: layout.bezel - Math.max(3, Math.round(4 * (layout.screenWidth / 800))),
+              width: 6,
+              height: 6,
+              borderRadius: 3,
+              opacity: layout.isMacBook ? 1 : 0,
+              background: "#1a1a1c",
+              boxShadow: "inset 0 0 0 1px rgba(255,255,255,0.06)",
+              ...morphTransition,
+            }}
+          />
+
+          {/* 屏幕区域 — iframe 始终在此 */}
+          <div
+            className="absolute overflow-hidden bg-white"
+            style={{
+              top: layout.bezel,
+              left: layout.bezel,
+              width: layout.screenWidth,
+              height: layout.screenHeight,
+              borderRadius: layout.screenRadius,
+              ...morphTransition,
+            }}
+          >
+            {/* Mac 浏览器顶栏 — Safari 风格 */}
+            <div
+              className="absolute top-0 inset-x-0 z-10 flex items-center bg-[#ebebeb] border-b border-black/[0.05] overflow-hidden"
+              style={{
+                height: layout.browserChromeHeight,
+                opacity: layout.isMacBook ? 1 : 0,
+                paddingLeft: Math.round(10 * (layout.screenWidth / 800)),
+                paddingRight: Math.round(10 * (layout.screenWidth / 800)),
+                ...morphTransition,
+              }}
+            >
+              <div className="flex items-center gap-1 shrink-0">
+                <span className="w-2 h-2 rounded-full bg-[#ff5f57]" />
+                <span className="w-2 h-2 rounded-full bg-[#febc2e]" />
+                <span className="w-2 h-2 rounded-full bg-[#28c840]" />
+              </div>
+              <div className="flex-1 flex justify-center min-w-0 px-2">
+                <span
+                  className="truncate text-[9px] text-[#6e6e73] font-mono leading-none bg-black/[0.05] rounded-md"
+                  style={{
+                    maxWidth: "58%",
+                    padding: `${Math.max(2, Math.round(3 * (layout.screenWidth / 800)))}px ${Math.round(8 * (layout.screenWidth / 800))}px`,
+                  }}
+                >
+                  {hostname}
+                </span>
+              </div>
+              <div className="shrink-0" style={{ width: Math.round(36 * (layout.screenWidth / 800)) }} />
+            </div>
+
+            <div
+              className="absolute inset-x-0 bottom-0 overflow-hidden bg-white"
+              style={{
+                top: layout.iframeTop,
+                ...morphTransition,
+              }}
+            >
+              <iframe
+                src={demoUrl}
+                title={`${title} 演示预览`}
+                className="absolute top-0 left-0 border-0 bg-white origin-top-left"
+                loading="lazy"
+                sandbox="allow-scripts allow-same-origin allow-forms"
+                style={{
+                  width: layout.iframeWidth,
+                  height: layout.iframeHeight,
+                  transform: layout.iframeTransform,
+                  ...morphTransition,
+                }}
+              />
+            </div>
+
+            {/* 设备顶栏 overlay — 按形态切换，不卸载 iframe */}
+            <div
+              className="absolute inset-0 pointer-events-none"
+              style={{
+                opacity: layout.showOverlays ? 1 : 0,
+                ...morphTransition,
+              }}
+            >
+              <div
+                className="absolute inset-0"
+                style={{
+                  opacity: layout.overlayKind === "ios" ? 1 : 0,
+                  ...morphTransition,
+                }}
+              >
+                <SystemChrome
+                  device={layout.statusDevice}
+                  screenWidth={layout.screenWidth}
+                  morphStyle={morphTransition}
+                />
+                {layout.showHomeIndicator && (
+                  <HomeIndicator
+                    screenWidth={layout.screenWidth}
+                    refWidth={layout.overlayRefWidth}
+                    morphStyle={morphTransition}
+                  />
+                )}
+              </div>
+              <div
+                className="absolute inset-0"
+                style={{
+                  opacity: layout.overlayKind === "miniprogram" ? 1 : 0,
+                  ...morphTransition,
+                }}
+              >
+                <MiniProgramChrome
+                  screenWidth={layout.screenWidth}
+                  pageTitle={title}
+                  morphStyle={morphTransition}
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

@@ -3,7 +3,7 @@ import type { PostMeta, Post, PreviewDevice } from "./posts";
 
 const GITHUB_TOKEN = process.env.GITHUB_TOKEN;
 
-const VALID_DEVICES = new Set<PreviewDevice>(["desktop", "mobile", "tablet"]);
+const VALID_DEVICES = new Set<PreviewDevice>(["desktop", "mobile", "tablet", "miniprogram"]);
 
 function rawUrl(repo: string, branch = "main") {
   return `https://raw.githubusercontent.com/${repo}/${branch}/portfolio.md`;

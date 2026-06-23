@@ -2,7 +2,7 @@ import { PROJECTS } from "@/projects.config";
 import { fetchPostMeta, fetchPost } from "./github";
 
 /** 预览设备形态（Form Factor） */
-export type PreviewDevice = "desktop" | "mobile" | "tablet";
+export type PreviewDevice = "desktop" | "mobile" | "tablet" | "miniprogram";
 
 export interface PostMeta {
   slug: string;
@@ -13,7 +13,7 @@ export interface PostMeta {
   demoUrl?: string;
   githubUrl?: string;
   date?: string;
-  /** 预览轮播的设备列表，如 [desktop, mobile, tablet] */
+  /** 预览轮播的设备列表，如 [desktop, mobile, tablet, miniprogram] */
   devices?: PreviewDevice[];
 }
 
