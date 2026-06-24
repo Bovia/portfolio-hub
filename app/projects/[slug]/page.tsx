@@ -3,15 +3,16 @@ import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { DemoPreview } from "@/components/DemoPreview";
 import { MDXWrapper } from "@/components/MDXWrapper";
-import { getAllPostSlugs, getPostBySlug } from "@/lib/posts";
+import { getAllPosts, getPostBySlug } from "@/lib/posts";
 import type { Metadata } from "next";
 
 interface PageProps {
   params: Promise<{ slug: string }>;
 }
 
-export function generateStaticParams() {
-  return getAllPostSlugs().map((slug) => ({ slug }));
+export async function generateStaticParams() {
+  const posts = await getAllPosts();
+  return posts.map((post) => ({ slug: post.slug }));
 }
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {

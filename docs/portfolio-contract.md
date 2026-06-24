@@ -10,7 +10,7 @@
 ---
 title: "项目名"
 description: "一句话介绍"
-published: true              # 可选，默认 true；false 时 Hub 不展示
+published: true              # 默认 true；开发中可改为 false
 demoUrl: "https://xxx.vercel.app/"
 githubUrl: "https://github.com/Bovia/xxx"
 date: "2026-06"
@@ -29,7 +29,7 @@ devices:                     # 可选，Hub 预览轮播设备
 |------|------|------|
 | `title` | ✅ | 卡片与详情页标题 |
 | `description` | ✅ | 一句话摘要 |
-| `published` | 否 | 默认 `true`；`false` 隐藏于 Hub |
+| `published` | 否 | 默认 `true`；`false` 时 Hub 首页与详情页均不可见 |
 | `demoUrl` | 建议 | 独立部署地址；无则详情页无 iframe |
 | `githubUrl` | 建议 | 默认可从 Hub `projects.config.ts` 推断 |
 | `date` | 建议 | 排序，格式 `YYYY-MM` |
@@ -49,6 +49,23 @@ devices:                     # 可选，Hub 预览轮播设备
 
 ## 结果
 ```
+
+---
+
+## 为什么叫 `published`
+
+| 候选 | 说明 |
+|------|------|
+| **`published`（采用）** | 静态站点 / CMS 通用语义：「是否对外展示」；与 Git push 无关 |
+| `visible` | 偏 UI，不够表达「作品集上架」 |
+| `featured` | 更像「精选推荐」，无法表达「开发中隐藏」 |
+
+**设计原则（opt-out）：**
+
+- Hub 解析时**未写字段 = `true`**，老项目无需迁移
+- 子项目建议**显式写 `published: true`**，一眼可知状态
+- 开发中改为 `published: false` → Hub 首页不展示、详情页 404
+- `projects.config.ts` 只管「注册拉取」，不管展示；可先注册、后公开
 
 ---
 

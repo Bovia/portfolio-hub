@@ -43,8 +43,12 @@ async function fetchMarkdown(repo: string, branch = "main"): Promise<string | nu
   }
 }
 
+/** 默认 true（opt-out）：仅显式 false 时隐藏于 Hub */
 function parsePublished(data: Record<string, unknown>): boolean {
-  if (data.published === false || data.published === "false") return false;
+  const value = data.published;
+  if (value === false || value === "false" || value === 0 || value === "0") {
+    return false;
+  }
   return true;
 }
 

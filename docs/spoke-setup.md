@@ -7,7 +7,7 @@
 ## 一、Hub 侧（portfolio-hub 维护者）
 
 1. `projects.config.ts` 增加 `slug` + `repo`
-2. 确认子项目根目录有 `portfolio.md` 且 `published: true`
+2. 子项目 `portfolio.md` 写 `published: true`（省略时 Hub 也视为 true，建议显式写出）
 
 ---
 
@@ -55,10 +55,11 @@ portfolio-hub/docs/spoke-templates/nextjs/
 
 ## 四、当前项目状态
 
-| 项目 | embed | published 字段 |
-|------|-------|----------------|
-| ruankao-senior（高项） | ✅ | 待加 |
-| softexam-30d（中项） | ✅ | 待加 |
-| financial_basic_practice | ✅ | 待加 |
-| clinic_tools | 无需（无登录） | 待加 |
-| be-young | 待定 | 待加 |
+| 项目 | embed | published |
+|------|-------|-----------|
+| ruankao-senior（高项） | ✅ | ✅ `true` |
+| softexam-30d（中项） | ✅ | ✅ `true` |
+| financial_basic_practice | ✅ | ✅ `true` |
+| canvas-editor | 无需（无登录） | ✅ `true` |
+| clinic_tools | 无需（无登录） | ✅ `true` |
+| be-young | 待定 | ✅ `true` |

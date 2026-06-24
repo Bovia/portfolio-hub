@@ -1,7 +1,7 @@
 ---
 title: 项目名称
 description: 一句话说明这个项目做什么
-published: false
+published: true
 demoUrl: https://your-app.vercel.app/
 githubUrl: https://github.com/Bovia/your-repo
 date: 2026-06
