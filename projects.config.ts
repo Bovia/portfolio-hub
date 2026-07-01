@@ -31,4 +31,8 @@ export const PROJECTS: ProjectConfig[] = [
     slug: "canvas-editor",
     repo: `${GITHUB_USER}/canvas-editor`,
   },
+  {
+    slug: "logic-flow",
+    repo: `${GITHUB_USER}/logic-flow`,
+  },
 ];

@@ -62,4 +62,5 @@ portfolio-hub/docs/spoke-templates/nextjs/
 | financial_basic_practice | ✅ | ✅ `true` |
 | canvas-editor | 无需（无登录） | ✅ `true` |
 | clinic_tools | 无需（无登录） | ✅ `true` |
+| logic-flow | 无需（无登录） | ✅ `true` |
 | be-young | 待定 | ✅ `true` |
